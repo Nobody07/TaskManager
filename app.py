@@ -7,7 +7,6 @@ app.secret_key = "task_manager_secret"
 
 
 def init_db():
-
     conn = sqlite3.connect("tasks.db")
     cursor = conn.cursor()
 
@@ -24,6 +23,8 @@ def init_db():
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT NOT NULL,
         status TEXT DEFAULT 'Pending',
+        priority TEXT DEFAULT 'Medium',
+        due_date TEXT,
         user_id INTEGER,
         created_at TEXT
     )
@@ -92,7 +93,6 @@ def login():
         conn.close()
 
         if user:
-
             session["user_id"] = user[0]
             session["username"] = user[1]
 
@@ -119,12 +119,28 @@ def dashboard():
 
     tasks = cursor.fetchall()
 
+    total_tasks = len(tasks)
+
+    completed_tasks = len(
+        [task for task in tasks if task[2] == "Completed"]
+    )
+
+    pending_tasks = total_tasks - completed_tasks
+    progress = 0
+
+    if total_tasks > 0:
+        progress = int((completed_tasks / total_tasks) * 100)
+
     conn.close()
 
     return render_template(
         "dashboard.html",
         username=session["username"],
-        tasks=tasks
+        tasks=tasks,
+        total_tasks=total_tasks,
+        completed_tasks=completed_tasks,
+        pending_tasks=pending_tasks,
+        progress=progress
     )
 
 
@@ -135,16 +151,21 @@ def add_task():
         return redirect("/login")
 
     title = request.form["title"]
+    priority = request.form["priority"]
+    due_date = request.form["due_date"]
 
     conn = sqlite3.connect("tasks.db")
     cursor = conn.cursor()
 
     cursor.execute("""
         INSERT INTO tasks
-        (title, user_id, created_at)
-        VALUES (?, ?, ?)
+        (title, status, priority,due_date, user_id, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
     """, (
         title,
+        "Pending",
+        priority,
+        due_date,
         session["user_id"],
         datetime.now().strftime("%d/%m/%Y")
     ))
@@ -153,8 +174,12 @@ def add_task():
     conn.close()
 
     return redirect("/dashboard")
+
+
+
 @app.route("/complete-task/<int:id>")
 def complete_task(id):
+
     conn = sqlite3.connect("tasks.db")
     cursor = conn.cursor()
 
@@ -167,8 +192,11 @@ def complete_task(id):
     conn.close()
 
     return redirect("/dashboard")
+
+
 @app.route("/delete-task/<int:id>")
 def delete_task(id):
+
     conn = sqlite3.connect("tasks.db")
     cursor = conn.cursor()
 
@@ -181,6 +209,8 @@ def delete_task(id):
     conn.close()
 
     return redirect("/dashboard")
+
+
 @app.route("/edit-task/<int:id>", methods=["POST"])
 def edit_task(id):
 
@@ -198,6 +228,8 @@ def edit_task(id):
     conn.close()
 
     return redirect("/dashboard")
+
+
 @app.route("/logout")
 def logout():
 
